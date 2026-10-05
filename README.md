@@ -13,6 +13,7 @@ this T2 Mac.
 - **Compositor:** Hyprland, configured in Lua (`hypr/*.lua`)
 - **Shell:** Omarchy Quickshell bar/menu, plus custom `cure.*` plugins
 - **Boot:** Limine with an Apple-styled boot screen
+- **Theme:** Solitude 
 
 The pre-4.x version of this config lives in [`legacy/`](legacy/) for
 historical reference.
