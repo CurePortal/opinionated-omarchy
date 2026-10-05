@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# omarchy post-update hook: keep the Apple Plymouth boot screen after updates.
+#
+# `omarchy update` reinstalls packages with `--overwrite`, and the omarchy
+# package owns /usr/share/plymouth/themes/omarchy/*, so an update silently
+# reverts the boot screen to stock. This hook re-applies the Apple art and
+# rebuilds the UKI whenever the installed logo no longer matches the theme's
+# unlock.png.
+set -euo pipefail
+
+THEME="$HOME/.config/omarchy/themes/apple"
+APPLY="$HOME/.config/omarchy/apple/apply-apple-plymouth.sh"
+INSTALLED=/usr/share/plymouth/themes/omarchy/logo.png
+
+[[ -f $THEME/unlock.png ]] || exit 0
+[[ -f $APPLY ]] || exit 0
+
+if [[ -f $INSTALLED ]] && cmp -s "$THEME/unlock.png" "$INSTALLED"; then
+  exit 0
+fi
+
+if sudo -n true 2>/dev/null; then
+  sudo "$APPLY"
+else
+  omarchy-notification-send -g 󰟵 "Boot screen reset by update" \
+    "Run omarchy/apple/apply-apple-plymouth.sh to restore the Apple boot screen." >/dev/null 2>&1 || true
+fi

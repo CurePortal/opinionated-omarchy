@@ -52,16 +52,25 @@ historical reference.
 
 ## Apple look & feel
 
-- **Boot screen** — `omarchy/apple/limine-wallpaper.png` plus
+- **Limine boot menu** — `omarchy/apple/limine-wallpaper.png` plus
   `apply-limine-apple.sh`, which installs the wallpaper and rewrites the global
   options in `/boot/limine.conf` (Apple grayscale palette, `macOS` branding,
   black backdrop). The generated config is committed at `limine/limine.conf`.
+- **Plymouth screen (LUKS/boot)** — the Apple art pinned by
+  `apply-apple-plymouth.sh` (black background, white accents, the Apple glyph
+  from the theme's `unlock.png`). This is applied to Plymouth/SDDM directly, so
+  it stays Apple whichever session theme is active. Omarchy updates overwrite
+  `/usr/share/plymouth/themes/omarchy/*`; the
+  `omarchy/hooks/post-update.d/restore-apple-plymouth.hook` re-applies it.
 - **Lock screen** — the custom `cure.lock` Quickshell plugin and the `apple`
   theme's `unlock.png`.
 - **Branding** — `omarchy/branding/` holds the ASCII `about.txt` and the Apple
   `screensaver.txt` logo.
-- **Theme** — `omarchy/themes/apple/colors.toml` is a monochrome Apple palette
-  (pure black backgrounds, `#8e8e93` muted, `#1c1c1e` elevated surfaces).
+- **Theme** — `omarchy/themes/apple/` is a clone of the stock **Solitude** theme
+  (same `colors.toml`, btop/hyprland/neovim/vscode/icons), keeping Apple's own
+  `unlock.png`, plus five Apple-style wallpapers in `backgrounds/` (Sequoia,
+  Big Sur, Ventura, Graphite, Monterey). A `preview.png` is present so the theme
+  appears in the Omarchy theme chooser.
 - **Chrome** — a bottom, non-transparent bar with a center media widget, left
   workspaces, and right-side tray/agents/bluetooth/network/audio/monitor/power
   and an Apple-style 12-hour clock (`omarchy/shell.json`). The bundled
@@ -86,10 +95,11 @@ hypr/                 Hyprland 4.x Lua config (hyprland, bindings, input,
 omarchy/
   shell.json          Quickshell bar/idle/plugin layout
   shell.toml          Shell font settings
-  apple/              Apple Limine boot screen + apply script
+  apple/              Limine + Plymouth Apple boot art and apply scripts
   branding/           about.txt / screensaver.txt ASCII art
   extensions/         omarchy-menu.jsonc extensions
-  themes/apple/       Apple color theme + unlock art
+  hooks/post-update.d/ Keeps the Apple Plymouth after omarchy updates
+  themes/apple/       Solitude clone + Apple unlock art + wallpapers
   plugins/            Custom cure.* Quickshell plugins
 limine/
   limine.conf                        Generated Apple-styled boot config
