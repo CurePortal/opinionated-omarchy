@@ -1,0 +1,12 @@
+mode = "dark"
+
+accent = "#ffffff"
+selection = "#3a3a3c"
+muted = "#8e8e93"
+
+background = "#000000"
+dark_background = "#000000"
+darker_background = "#000000"
+lighter_background = "#1c1c1e"
+
+foreground = "#ffffff"

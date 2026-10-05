@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "cure.bar",
+  "name": "My Bar",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Status bar with widgets",
+  "omarchy": { "clonedFrom": "omarchy.bar" },
+  "kinds": ["bar"],
+  "entryPoints": { "bar": "Bar.qml" }
+}

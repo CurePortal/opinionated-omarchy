@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "cure.media",
+  "name": "My Media",
+  "version": "1.0.0",
+  "author": "cure",
+  "description": "Transport controls with Tidal fallback",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Media.qml"
+  },
+  "barWidget": {
+    "displayName": "My Media",
+    "description": "Transport controls with Tidal fallback",
+    "category": "Media",
+    "allowMultiple": false
+  }
+}

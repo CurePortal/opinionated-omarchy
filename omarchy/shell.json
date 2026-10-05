@@ -1,0 +1,70 @@
+{
+  "bar": {
+    "centerAnchor": "",
+    "id": "cure.bar",
+    "layout": {
+      "center": [
+        {
+          "id": "cure.media"
+        }
+      ],
+      "left": [
+        {
+          "id": "cure.workspaces"
+        }
+      ],
+      "right": [
+        {
+          "id": "omarchy.tray"
+        },
+        {
+          "id": "omarchy.agents"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.network"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "omarchy.monitor"
+        },
+        {
+          "id": "omarchy.power"
+        },
+        {
+          "format": "h:mm AP",
+          "formatAlt": "ddd d MMM h:mm AP",
+          "id": "cure.clock",
+          "verticalFormat": "h\n—\nmm\nAP"
+        }
+      ]
+    },
+    "position": "bottom",
+    "transparent": false
+  },
+  "cloneSourceRestores": [
+    "cure.lock",
+    "cure.menu"
+  ],
+  "disabledPlugins": [
+    "omarchy.lock",
+    "omarchy.menu"
+  ],
+  "idle": {
+    "lock": 900,
+    "screensaver": 450
+  },
+  "plugins": [
+    {
+      "id": "cure.lock"
+    },
+    {
+      "id": "cure.menu"
+    }
+  ],
+  "version": 1
+}
