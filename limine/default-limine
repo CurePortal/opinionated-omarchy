@@ -1,0 +1,25 @@
+TARGET_OS_NAME="Omarchy"
+
+ESP_PATH="/boot"
+
+KERNEL_CMDLINE[default]="cryptdevice=PARTUUID=e9f02c24-fea3-4ab0-b431-71da04e61936:root root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs"
+KERNEL_CMDLINE[default]+=" quiet splash loglevel=0 systemd.show_status=false rd.udev.log_level=0 vt.global_cursor_default=0 initramfs_async=0"
+# T2 Mac (MacBookPro16,1): S3 "deep" is not reliable, force s2idle.
+# pcie_ports=compat as recommended for T2; intel_iommu/iommu=pt for the T2 DMA.
+KERNEL_CMDLINE[default]+=" intel_iommu=on iommu=pt pm_async=off pcie_ports=compat mem_sleep_default=s2idle"
+
+ENABLE_UKI=yes
+CUSTOM_UKI_NAME="omarchy"
+
+ENABLE_LIMINE_FALLBACK=yes
+
+# Find and add other bootloaders
+FIND_BOOTLOADERS=yes
+
+# Keep T2 Macs on their specialized kernel; prefer linux-omarchy elsewhere.
+BOOT_ORDER="linux-t2, linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"
+
+# Allow the extra snapshot limine-snapper-sync can see before cleanup settles.
+MAX_SNAPSHOT_ENTRIES=6
+
+SNAPSHOT_FORMAT_CHOICE=5

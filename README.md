@@ -40,8 +40,10 @@ historical reference.
 - **Trackpad** — natural scroll, clickfinger right-click, three-finger drag and
   workspace gestures (`input.lua`).
 - **Boot** — `limine/limine-entry-tool.d/t2-mac.conf` adds
-  `intel_iommu=on iommu=pt pm_async=off mem_sleep_default=deep`, and
-  `omarchy-defaults.conf` keeps T2 Macs on `linux-t2` via the `BOOT_ORDER`.
+  `intel_iommu=on iommu=pt pm_async=off pcie_ports=compat mem_sleep_default=s2idle`,
+  and `omarchy-defaults.conf` keeps T2 Macs on `linux-t2` via the `BOOT_ORDER`.
+- **Suspend** — forced to `s2idle` because this T2's advertised S3 `deep` state
+  does not hold (see [Suspend](#suspend-lid-close)).
 - **Audio** — designed to run alongside the out-of-tree T2 audio stack
   ([`snd_hda_macbookpro`](https://github.com/davidjo/snd_hda_macbookpro),
   [`t2-apple-audio-dsp`](https://github.com/lemmyg/t2-apple-audio-dsp)) for the
@@ -91,9 +93,40 @@ omarchy/
   plugins/            Custom cure.* Quickshell plugins
 limine/
   limine.conf                        Generated Apple-styled boot config
+  default-limine                     /etc/default/limine (authoritative cmdline)
   limine-entry-tool.d/               T2 Mac + Omarchy bootloader overrides
+systemd/
+  sleep.conf.d/                      Forces freeze/s2idle suspend
 legacy/               Pre-4.x .conf configs (kept for reference)
 ```
+
+## Suspend (lid close)
+
+Lid-close sleep on this machine needs two things, and both are easy to get
+wrong on Omarchy 4.x:
+
+1. **Force `s2idle`, not `deep`.** The kernel advertises S3 `deep`, but on this
+   T2 it aborts a couple of seconds in and the system falls back to `s2idle`
+   mid-suspend — the screen wakes while the lid is still closed. Set
+   `mem_sleep_default=s2idle` (boot) and the `[Sleep]` drop-in
+   (`SuspendState=freeze`, `MemorySleepMode=s2idle`).
+2. **Make sure the parameter actually reaches the kernel.** `/etc/default/limine`
+   uses `KERNEL_CMDLINE[default]=`, and per `limine-entry-tool`, that file
+   **overrides** the `+=` drop-ins in `/etc/limine-entry-tool.d/`. If
+   `/etc/default/limine` exists, the T2 drop-in is silently ignored and the
+   kernel boots with `[deep]` (the firmware default). Keep the T2/Omarchy params
+   in `limine/default-limine` so they always apply, then rebuild:
+
+   ```bash
+   sudo cp limine/default-limine /etc/default/limine
+   sudo cp limine/limine-entry-tool.d/*.conf /etc/limine-entry-tool.d/
+   sudo mkdir -p /etc/systemd/sleep.conf.d
+   sudo cp systemd/sleep.conf.d/*.conf /etc/systemd/sleep.conf.d/
+   sudo limine-mkinitcpio
+   ```
+
+   Verify after reboot: `cat /proc/cmdline` shows the T2 params and
+   `cat /sys/power/mem_sleep` shows `[s2idle]`.
 
 ## Installing
 
@@ -108,8 +141,12 @@ cp -r limine/.      ~/.config/opinionated-omarchy-limine/   # reference copy
 # Apply the Apple boot screen (installs wallpaper + rewrites /boot/limine.conf)
 ~/.config/omarchy/apple/apply-limine-apple.sh
 
-# System bootloader overrides need root
+# Boot cmdline (T2 params + s2idle), drop-ins, and sleep mode need root
+sudo cp limine/default-limine /etc/default/limine
 sudo cp limine/limine-entry-tool.d/*.conf /etc/limine-entry-tool.d/
+sudo mkdir -p /etc/systemd/sleep.conf.d
+sudo cp systemd/sleep.conf.d/*.conf /etc/systemd/sleep.conf.d/
+sudo limine-mkinitcpio   # rebuild the UKI with the new cmdline
 
 # Quickshell plugins: ensure ~/.config/omarchy/shell.json references cure.*
 omarchy-restart-shell   # or reboot
