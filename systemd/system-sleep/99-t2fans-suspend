@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Stop the T2 fans from spinning during suspend-to-idle.
+#
+# `t2fans-high` pins the fans in manual mode at 75%, and in manual mode the
+# SMC holds that target straight through s2idle, so the fans stay audible the
+# whole time the lid is closed. Releasing manual control is not an option: the
+# SMC has no macOS thermal handshake and ramps both fans to maximum. Instead we
+# keep manual mode and drop the target to 0 for the sleep, which stops the fans
+# outright (verified fan1=0 fan2=0), then restore the pinned speed on resume.
+#
+# Installed to /usr/lib/systemd/system-sleep/99-t2fans-suspend.
+set -u
+
+SLEEP_PERCENT=0
+WAKE_PERCENT=75
+
+set_speed() {
+  local percent=$1 fan_manual fan_root i base min max speed
+  fan_manual=$(find /sys/devices -name fan1_manual -print -quit 2>/dev/null || true)
+  [[ -n $fan_manual ]] || return 0
+  fan_root=$(dirname "$fan_manual")
+  for i in 1 2; do
+    base="$fan_root/fan${i}"
+    [[ -e ${base}_max ]] || continue
+    min=$(cat "${base}_min")
+    max=$(cat "${base}_max")
+    speed=$(( max * percent / 100 ))
+    # Clamp to the floor only for an actual (non-zero) target; 0 must pass
+    # through so the SMC stops the fan.
+    if (( percent != 0 )); then
+      (( speed < min )) && speed=$min
+    fi
+    (( speed > max )) && speed=$max
+    printf '%s' 1 >"${base}_manual"
+    printf '%s' "$speed" >"${base}_output"
+  done
+}
+
+case "$1" in
+  pre)  set_speed "$SLEEP_PERCENT" ;;
+  post) set_speed "$WAKE_PERCENT" ;;
+esac

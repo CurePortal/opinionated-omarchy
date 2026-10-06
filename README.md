@@ -44,14 +44,21 @@ historical reference.
   `tmpfiles.d/omarchy-no-turbo.conf`, which writes `1` to
   `/sys/devices/system/cpu/intel_pstate/no_turbo` (see
   [Thermal tuning](#thermal-tuning-turbo-boost--fans)).
-- **Fans** — held at a fixed **75% of max**, never ramping and never off, by
-  `bin/t2fans-high` + `systemd/t2fans-high.service` (see
+- **Hybrid graphics** — the Intel iGPU is the primary display adapter
+  (`modprobe.d/apple-gmux.conf` + `apple_gmux.force_igd=1`), and the AMD dGPU
+  is powered off at boot by `systemd/amdgpu-off.service` (vgaswitcheroo). This
+  is what makes suspend/resume actually work; see
+  [Hybrid graphics](#hybrid-graphics-igpu-primary-dgpu-off).
+- **Fans** — held at a fixed **75% of max** while awake, by `bin/t2fans-high`
+  + `systemd/t2fans-high.service`; stopped outright during suspend by
+  `systemd/system-sleep/99-t2fans-suspend` (see
   [Thermal tuning](#thermal-tuning-turbo-boost--fans)).
 - **Boot** — `limine/limine-entry-tool.d/t2-mac.conf` adds
-  `intel_iommu=on iommu=pt pm_async=off pcie_ports=compat mem_sleep_default=s2idle`,
+  `intel_iommu=on iommu=pt pm_async=off pcie_ports=compat mem_sleep_default=s2idle apple_gmux.force_igd=1 i915.enable_guc=3`,
   and `omarchy-defaults.conf` keeps T2 Macs on `linux-t2` via the `BOOT_ORDER`.
 - **Suspend** — forced to `s2idle` because this T2's advertised S3 `deep` state
-  does not hold (see [Suspend](#suspend-lid-close)).
+  does not hold (see [Suspend](#suspend-lid-close)); resume only works once the
+  dGPU is off. Fans are silenced for the sleep by the same section.
 - **Audio** — designed to run alongside the out-of-tree T2 audio stack
   ([`snd_hda_macbookpro`](https://github.com/davidjo/snd_hda_macbookpro),
   [`t2-apple-audio-dsp`](https://github.com/lemmyg/t2-apple-audio-dsp)) for the
@@ -140,8 +147,12 @@ limine/
   limine.conf                        Generated Apple-styled boot config
   default-limine                     /etc/default/limine (authoritative cmdline)
   limine-entry-tool.d/               T2 Mac + Omarchy bootloader overrides
+modprobe.d/
+  apple-gmux.conf                     Forces the Intel iGPU as the display adapter
 systemd/
   sleep.conf.d/                       Forces freeze/s2idle suspend
+  amdgpu-off.service                  Powers off the AMD dGPU at boot (vgaswitcheroo)
+  system-sleep/99-t2fans-suspend      Stops the fans during suspend, restores after
   t2fans-high.service                 Pins both fans at a fixed speed
 bin/
   t2fans-high                         Fan-pinning script (/usr/local/bin)
@@ -150,17 +161,52 @@ tmpfiles.d/
 legacy/               Pre-4.x .conf configs (kept for reference)
 ```
 
+## Hybrid graphics (iGPU primary, dGPU off)
+
+Out of the box the AMD dGPU is the firmware-default display adapter, so it has
+to stay powered on. That is both the heat/battery problem and, on this machine,
+the reason suspend hangs. The fix is two parts:
+
+1. **Make the iGPU primary** via `modprobe.d/apple-gmux.conf`
+   (`options apple-gmux force_igd=y`) and the `apple_gmux.force_igd=1` kernel
+   parameter. After that the panel (`card1-eDP-1`) hangs off i915.
+2. **Power the dGPU off** at boot with `systemd/amdgpu-off.service`, which
+   writes `OFF` to `/sys/kernel/debug/vgaswitcheroo/switch`. Verify with
+   `sudo cat /sys/kernel/debug/vgaswitcheroo/switch` → `IGD + Pwr`, `DIS Off`.
+
+`i915.enable_guc=3` is also set (Gen9 ignores GuC *submission*, but HuC loads
+and authenticates, which helps the display come back after resume).
+
+```bash
+sudo install -Dm644 modprobe.d/apple-gmux.conf /etc/modprobe.d/apple-gmux.conf
+sudo install -Dm644 systemd/amdgpu-off.service /etc/systemd/system/amdgpu-off.service
+sudo systemctl daemon-reload
+sudo systemctl enable amdgpu-off.service
+```
+
+> Run this in two steps the first time: boot with the iGPU params and confirm
+> the desktop comes up on i915 *before* enabling `amdgpu-off.service`.
+
 ## Suspend (lid close)
 
-Lid-close sleep on this machine needs two things, and both are easy to get
-wrong on Omarchy 4.x:
+Lid-close sleep on this T2 only works as **s2idle**, and only once the dGPU is
+off:
 
 1. **Force `s2idle`, not `deep`.** The kernel advertises S3 `deep`, but on this
-   T2 it aborts a couple of seconds in and the system falls back to `s2idle`
-   mid-suspend — the screen wakes while the lid is still closed. Set
-   `mem_sleep_default=s2idle` (boot) and the `[Sleep]` drop-in
-   (`SuspendState=freeze`, `MemorySleepMode=s2idle`).
-2. **Make sure the parameter actually reaches the kernel.** `/etc/default/limine`
+   T2 it does not hold: a deep suspend sits there with the fans on and then the
+   machine powers itself off (tested repeatedly, including with the dGPU
+   disabled — `rtcwake -m mem` never returned). Set `mem_sleep_default=s2idle`
+   (boot) and the `[Sleep]` drop-in (`SuspendState=freeze`,
+   `MemorySleepMode=s2idle`).
+2. **The dGPU must be off for resume to work.** With the AMD dGPU as the
+   primary adapter, s2idle resume hangs; with the iGPU primary and the dGPU
+   disabled, `PM: suspend entry` → `PM: suspend exit` completes cleanly.
+   See [Hybrid graphics](#hybrid-graphics-igpu-primary-dgpu-off).
+3. **Silence the fans during sleep.** `t2fans-high` keeps the fans in manual
+   mode at 75%, which the SMC holds through s2idle, so the fans stay on for the
+   whole sleep. `systemd/system-sleep/99-t2fans-suspend` drops the manual
+   target to 0 on suspend (stopping the fans) and restores 75% on resume.
+4. **Make sure the parameter actually reaches the kernel.** `/etc/default/limine`
    uses `KERNEL_CMDLINE[default]=`, and per `limine-entry-tool`, that file
    **overrides** the `+=` drop-ins in `/etc/limine-entry-tool.d/`. If
    `/etc/default/limine` exists, the T2 drop-in is silently ignored and the
@@ -207,15 +253,23 @@ The kernel exposes the T2 fans through `applesmc`
 (`fan{1,2}_manual` / `_output`), but the usual daemons only offer a temperature
 curve or full blast. `bin/t2fans-high` instead sets each fan to manual mode at
 `T2FANS_PERCENT` (default **75%**) of its own max, then holds it there — no
-ramping, and never off. `systemd/t2fans-high.service` runs it once at boot and
+ramping. `systemd/t2fans-high.service` runs it once at boot and
 `Conflicts=t2fanrd.service` so the curve daemon cannot fight it.
 
 On this machine that pins fan1 to 4212 RPM (75% of 5616) and fan2 to 3900 RPM
-(75% of 5200).
+(75% of 5200). There is no working "automatic" mode to fall back to: releasing
+manual control (`fan*_manual=0`) makes the SMC ramp both fans to maximum,
+because Linux has no macOS thermal handshake. A target of `0` *does* stop them,
+which is what the suspend hook uses.
+
+`systemd/system-sleep/99-t2fans-suspend` stops the fans for the duration of
+s2idle: it drops the manual target to 0 on `pre` and restores 75% on `post`
+(releasing manual control instead would cause the max-speed ramp above).
 
 ```bash
 sudo install -Dm755 bin/t2fans-high /usr/local/bin/t2fans-high
 sudo install -Dm644 systemd/t2fans-high.service /etc/systemd/system/t2fans-high.service
+sudo install -Dm755 systemd/system-sleep/99-t2fans-suspend /usr/lib/systemd/system-sleep/99-t2fans-suspend
 sudo systemctl disable --now t2fanrd.service   # curve daemon, if present
 sudo systemctl enable --now t2fans-high.service
 ```
@@ -243,17 +297,25 @@ cp -r limine/.      ~/.config/opinionated-omarchy-limine/   # reference copy
 # Apply the Apple boot screen (installs wallpaper + rewrites /boot/limine.conf)
 ~/.config/omarchy/apple/apply-limine-apple.sh
 
-# Boot cmdline (T2 params + s2idle), drop-ins, and sleep mode need root
+# Boot cmdline (T2 params + s2idle + iGPU), drop-ins, and sleep mode need root
 sudo cp limine/default-limine /etc/default/limine
 sudo cp limine/limine-entry-tool.d/*.conf /etc/limine-entry-tool.d/
 sudo mkdir -p /etc/systemd/sleep.conf.d
 sudo cp systemd/sleep.conf.d/*.conf /etc/systemd/sleep.conf.d/
 sudo limine-mkinitcpio   # rebuild the UKI with the new cmdline
 
+# Hybrid graphics: iGPU primary + dGPU off. See that section for the two-step
+# first-run caveat.
+sudo install -Dm644 modprobe.d/apple-gmux.conf /etc/modprobe.d/apple-gmux.conf
+sudo install -Dm644 systemd/amdgpu-off.service /etc/systemd/system/amdgpu-off.service
+sudo systemctl daemon-reload
+sudo systemctl enable amdgpu-off.service
+
 # Thermal tuning (Turbo Boost off + fans pinned). See that section for details.
 sudo install -Dm644 tmpfiles.d/omarchy-no-turbo.conf /etc/tmpfiles.d/omarchy-no-turbo.conf
 sudo install -Dm755 bin/t2fans-high /usr/local/bin/t2fans-high
 sudo install -Dm644 systemd/t2fans-high.service /etc/systemd/system/t2fans-high.service
+sudo install -Dm755 systemd/system-sleep/99-t2fans-suspend /usr/lib/systemd/system-sleep/99-t2fans-suspend
 sudo systemctl disable --now t2fanrd.service
 sudo systemctl enable --now t2fans-high.service
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/omarchy-no-turbo.conf

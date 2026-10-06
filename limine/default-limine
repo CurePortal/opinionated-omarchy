@@ -23,3 +23,8 @@ BOOT_ORDER="linux-t2, linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"
 MAX_SNAPSHOT_ENTRIES=6
 
 SNAPSHOT_FORMAT_CHOICE=5
+
+# Prefer the Intel iGPU as the display adapter and load GuC/HuC. With the AMD
+# dGPU disabled (amdgpu-off.service) this is what makes the panel hang off the
+# iGPU, fixes suspend/resume, and lets the fans sit at a sane speed.
+KERNEL_CMDLINE[default]+=" apple_gmux.force_igd=1 i915.enable_guc=3"
