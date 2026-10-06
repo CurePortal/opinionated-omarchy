@@ -11,7 +11,8 @@ this T2 Mac.
 
 - **Omarchy target:** 4.x ("Quattro", Quickshell-based; Waybar is gone)
 - **Compositor:** Hyprland, configured in Lua (`hypr/*.lua`)
-- **Shell:** Omarchy Quickshell bar/menu, plus custom `cure.*` plugins
+- **Shell:** Omarchy Quickshell bar/menu (with a built-in calculator and
+  unit/currency conversion), plus custom `cure.*` plugins
 - **Boot:** Limine with an Apple-styled boot screen
 - **Theme:** Solitude 
 
@@ -91,8 +92,35 @@ historical reference.
 | `cure.clock` | Apple-style clock with calendar popup |
 | `cure.lock` | Lock screen (separate password + fingerprint PAM flows) |
 | `cure.media` | Transport controls with Tidal fallback |
-| `cure.menu` | Omarchy command menu |
+| `cure.menu` | Omarchy command menu with inline calculator + unit/currency conversion |
 | `cure.workspaces` | Workspace number indicators |
+
+### Calculator & conversion in the menu
+
+`cure.menu` has a calculator and unit/currency converter built into its search
+box, so no separate launcher is needed. Start typing an expression and the
+answer is pinned above the normal matches as its own row; press Enter to copy
+it to the clipboard. It is backed by [`qalc`](https://qalculate.github.io/)
+(`libqalculate`, already present as an Omarchy dependency).
+
+```text
+2+2*3              → = 8
+(1920/2)/1.6       → = 600
+sqrt(2)            → = 1.414213562
+10 miles to km     → = 16.09344 km
+100 km/h to mph    → = 62.13711922 mph
+1 GiB to MB        → = 1073.741824 MB
+150 USD to EUR     → = €132.10 EUR   (live exchange rate)
+```
+
+The trigger is deliberately conservative so the launcher does not mistake app
+names or prose for math:
+
+- Bare numbers, dates (`2024-06-01`), and words without a digit are ignored.
+- A conversion only fires on the `<number> <unit> to|in <unit>` shape, so
+  phrases like "log in" are not sent to qalc.
+- Results that look like unit products (`1 g·pt − 4`) are discarded, and a
+  result containing letters is only shown for an explicit conversion.
 
 ## Layout
 
