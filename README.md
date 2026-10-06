@@ -78,7 +78,7 @@ historical reference.
   `unlock.png`, plus five Apple-style wallpapers in `backgrounds/` (Sequoia,
   Big Sur, Ventura, Graphite, Monterey). A `preview.png` is present so the theme
   appears in the Omarchy theme chooser.
-- **Chrome** — a bottom, non-transparent bar with a center media widget, left
+- **Quickshell Bar** — a bottom, non-transparent bar with a center media widget, left
   workspaces, and right-side tray/agents/bluetooth/network/audio/monitor/power
   and an Apple-style 12-hour clock (`omarchy/shell.json`). The bundled
   `omarchy.lock` and `omarchy.menu` are disabled in favor of the `cure.*` clones.
