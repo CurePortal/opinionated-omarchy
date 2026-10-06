@@ -39,6 +39,13 @@ historical reference.
   (`hypr/bindings.lua`).
 - **Trackpad** — natural scroll, clickfinger right-click, three-finger drag and
   workspace gestures (`input.lua`).
+- **Turbo Boost** — disabled at boot by
+  `tmpfiles.d/omarchy-no-turbo.conf`, which writes `1` to
+  `/sys/devices/system/cpu/intel_pstate/no_turbo` (see
+  [Thermal tuning](#thermal-tuning-turbo-boost--fans)).
+- **Fans** — held at a fixed **75% of max**, never ramping and never off, by
+  `bin/t2fans-high` + `systemd/t2fans-high.service` (see
+  [Thermal tuning](#thermal-tuning-turbo-boost--fans)).
 - **Boot** — `limine/limine-entry-tool.d/t2-mac.conf` adds
   `intel_iommu=on iommu=pt pm_async=off pcie_ports=compat mem_sleep_default=s2idle`,
   and `omarchy-defaults.conf` keeps T2 Macs on `linux-t2` via the `BOOT_ORDER`.
@@ -106,7 +113,12 @@ limine/
   default-limine                     /etc/default/limine (authoritative cmdline)
   limine-entry-tool.d/               T2 Mac + Omarchy bootloader overrides
 systemd/
-  sleep.conf.d/                      Forces freeze/s2idle suspend
+  sleep.conf.d/                       Forces freeze/s2idle suspend
+  t2fans-high.service                 Pins both fans at a fixed speed
+bin/
+  t2fans-high                         Fan-pinning script (/usr/local/bin)
+tmpfiles.d/
+  omarchy-no-turbo.conf               Disables Intel Turbo Boost at boot
 legacy/               Pre-4.x .conf configs (kept for reference)
 ```
 
@@ -138,6 +150,58 @@ wrong on Omarchy 4.x:
    Verify after reboot: `cat /proc/cmdline` shows the T2 params and
    `cat /sys/power/mem_sleep` shows `[s2idle]`.
 
+## Thermal tuning (Turbo Boost + fans)
+
+The i9-9980HK in this chassis runs hot and loud under load. Two tweaks keep it
+smooth and predictable: **Turbo Boost off** and **fans pinned at a constant
+speed**.
+
+### Disable Intel Turbo Boost
+
+`tmpfiles.d/omarchy-no-turbo.conf` writes `1` to
+`/sys/devices/system/cpu/intel_pstate/no_turbo` on every boot, capping the CPU
+at its base clock. This removes the short bursts that spiked temperatures (and
+fans) and made the machine throttle unevenly. The `w!` flag is boot-only, so it
+is reapplied at each start but will not fight a manual override during a
+session.
+
+```bash
+sudo install -Dm644 tmpfiles.d/omarchy-no-turbo.conf /etc/tmpfiles.d/omarchy-no-turbo.conf
+# apply now without rebooting:
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/omarchy-no-turbo.conf
+```
+
+Verify: `cat /sys/devices/system/cpu/intel_pstate/no_turbo` → `1`.
+
+### Pin the fans at 75%
+
+The kernel exposes the T2 fans through `applesmc`
+(`fan{1,2}_manual` / `_output`), but the usual daemons only offer a temperature
+curve or full blast. `bin/t2fans-high` instead sets each fan to manual mode at
+`T2FANS_PERCENT` (default **75%**) of its own max, then holds it there — no
+ramping, and never off. `systemd/t2fans-high.service` runs it once at boot and
+`Conflicts=t2fanrd.service` so the curve daemon cannot fight it.
+
+On this machine that pins fan1 to 4212 RPM (75% of 5616) and fan2 to 3900 RPM
+(75% of 5200).
+
+```bash
+sudo install -Dm755 bin/t2fans-high /usr/local/bin/t2fans-high
+sudo install -Dm644 systemd/t2fans-high.service /etc/systemd/system/t2fans-high.service
+sudo systemctl disable --now t2fanrd.service   # curve daemon, if present
+sudo systemctl enable --now t2fans-high.service
+```
+
+To change the speed, override `T2FANS_PERCENT` with a drop-in rather than
+editing the script, then restart:
+
+```bash
+sudo systemctl edit t2fans-high.service   # add: [Service]\nEnvironment=T2FANS_PERCENT=90
+sudo systemctl restart t2fans-high.service
+```
+
+Verify: `cat /sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:104/APP0001:00/fan{1,2}_output`.
+
 ## Installing
 
 These files map onto `~/.config` and `/boot`. From the repo root:
@@ -157,6 +221,14 @@ sudo cp limine/limine-entry-tool.d/*.conf /etc/limine-entry-tool.d/
 sudo mkdir -p /etc/systemd/sleep.conf.d
 sudo cp systemd/sleep.conf.d/*.conf /etc/systemd/sleep.conf.d/
 sudo limine-mkinitcpio   # rebuild the UKI with the new cmdline
+
+# Thermal tuning (Turbo Boost off + fans pinned). See that section for details.
+sudo install -Dm644 tmpfiles.d/omarchy-no-turbo.conf /etc/tmpfiles.d/omarchy-no-turbo.conf
+sudo install -Dm755 bin/t2fans-high /usr/local/bin/t2fans-high
+sudo install -Dm644 systemd/t2fans-high.service /etc/systemd/system/t2fans-high.service
+sudo systemctl disable --now t2fanrd.service
+sudo systemctl enable --now t2fans-high.service
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/omarchy-no-turbo.conf
 
 # Quickshell plugins: ensure ~/.config/omarchy/shell.json references cure.*
 omarchy-restart-shell   # or reboot

@@ -1,0 +1,13 @@
+[Unit]
+Description=Pin T2 fans to a fixed high speed
+# t2fanrd is disabled in favour of this unit; it would otherwise rewrite
+# fan speeds on its own temperature curve every second.
+Conflicts=t2fanrd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/t2fans-high
+
+[Install]
+WantedBy=multi-user.target

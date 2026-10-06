@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Pin T2 Mac fans to a fixed high speed regardless of temperature.
+# t2fanrd only offers a temperature curve (falls to minimum when cool) or
+# always_full_speed (maximum). This holds both fans at PERCENT of their max.
+set -euo pipefail
+
+PERCENT="${T2FANS_PERCENT:-75}"
+
+fan_manual=$(find /sys/devices -name 'fan1_manual' -print -quit 2>/dev/null || true)
+[[ -n $fan_manual ]] || { echo "T2 fan controller not found" >&2; exit 1; }
+fan_root=$(dirname "$fan_manual")
+
+for i in 1 2; do
+  base="$fan_root/fan${i}"
+  [[ -e ${base}_max ]] || continue
+
+  min=$(cat "${base}_min")
+  max=$(cat "${base}_max")
+  speed=$(( max * PERCENT / 100 ))
+  (( speed < min )) && speed=$min
+  (( speed > max )) && speed=$max
+
+  printf '%s' 1 > "${base}_manual"
+  printf '%s' "$speed" > "${base}_output"
+  echo "fan${i}: set to ${speed} RPM (${PERCENT}% of ${max})"
+done
