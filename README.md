@@ -333,4 +333,3 @@ copying it directly.
 
 - The `.conf` files in `legacy/` are from Omarchy 3.x and are no longer read by
   Hyprland; Hyprland now loads the Lua files in `hypr/`.
-- SSH `git@` auth may fail without an askpass helper; use HTTPS or `gh`.
